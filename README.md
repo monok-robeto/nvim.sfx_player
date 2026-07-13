@@ -1,5 +1,9 @@
 # nvim.sfx_player
 
+[![discord invite link](https://img.shields.io/discord/1495504680711880714?logo=discord)](https://discord.gg/a2qzfrFzWT)
+
+![preview](libs/nvim.sfx_player/assets/preview.gif)
+
 A tiny audio player popup for Neovim. Open an `mp3`, `wav`, `flac`, `ogg`, … file
 straight from your file explorer (e.g. [nvim-tree](https://github.com/nvim-tree/nvim-tree.lua))
 and get a floating window with file info and a **live, colored timeline** you drive
