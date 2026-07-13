@@ -6,13 +6,9 @@
 | ![fullscreen](assets/fullscreen.png) | 
 
 
-A tiny audio player popup for Neovim. Open an `mp3`, `wav`, `flac`, `ogg`, … file
-straight from your file explorer (e.g. [nvim-tree](https://github.com/nvim-tree/nvim-tree.lua))
-and get a floating window with file info and a **live, colored timeline** you drive
-from the keyboard.
+A tiny audio player popup for Neovim. Open an `mp3`, `wav`, `flac`, `ogg`, … file straight from your file explorer (e.g. [nvim-tree](https://github.com/nvim-tree/nvim-tree.lua)) and get a floating window with file info and a **live, colored timeline** you drive from the keyboard.
 
-Playback is handled by [`mpv`](https://mpv.io/) over its JSON IPC socket, so
-play/pause, seek and volume are real-time and gapless — no process restarts.
+Playback is handled by [`mpv`](https://mpv.io/) over its JSON IPC socket, so play/pause, seek and volume are real-time and gapless, no process restarts.
 
 ## Features
 
@@ -26,8 +22,8 @@ play/pause, seek and volume are real-time and gapless — no process restarts.
 ## Requirements
 
 - Neovim ≥ 0.9
-- [`mpv`](https://mpv.io/) — required (playback backend)
-- [`ffprobe`](https://ffmpeg.org/) — optional, adds codec/sample-rate/bitrate metadata
+- [`mpv`](https://mpv.io/), required (playback backend)
+- [`ffprobe`](https://ffmpeg.org/), optional, adds codec/sample-rate/bitrate metadata
 
 ### macOS
 
@@ -49,7 +45,7 @@ sudo dnf install mpv ffmpeg
 sudo pacman -S mpv ffmpeg
 ```
 
-> `ffmpeg` provides `ffprobe`. Without it the player still works — it just shows
+> `ffmpeg` provides `ffprobe`. Without it the player still works, it just shows
 > less metadata and relies on `mpv` for the duration.
 
 ## Installation
@@ -92,9 +88,7 @@ use({
 
 ### From nvim-tree
 
-Wire it into your nvim-tree `on_attach`. `nvimtree_attach` makes `<CR>` and
-`<Tab>` open the player for audio files and keeps the default action for
-everything else:
+Wire it into your nvim-tree `on_attach`. `nvimtree_attach` makes `<CR>` and `<Tab>` open the player for audio files and keeps the default action for everything else:
 
 ```lua
 require("nvim-tree").setup({
@@ -244,12 +238,9 @@ require("nvim.sfx_player").setup({
 
 ## How it works
 
-`open()` launches a headless `mpv` (`--no-video --keep-open`) with a unique
-`--input-ipc-server` socket, then connects to it with a Neovim pipe channel. A
-timer polls `time-pos` / `duration` / `pause` / `volume` and repaints the popup;
-key actions send `cycle pause`, `seek`, `add volume`, and `set loop-file`
-commands back over the socket. Closing the popup sends `quit` and stops the job,
-so nothing is left running.
+- `open()` launches a headless `mpv` (`--no-video --keep-open`) with a unique
+- `--input-ipc-server` socket, then connects to it with a Neovim pipe channel. A timer polls `time-pos` / `duration` / `pause` / `volume` and repaints the popup
+- key actions send `cycle pause`, `seek`, `add volume`, and `set loop-file` commands back over the socket. Closing the popup sends `quit` and stops the job, so nothing is left running.
 
 ## License
 
