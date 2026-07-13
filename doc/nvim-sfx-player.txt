@@ -1,0 +1,192 @@
+*nvim-sfx-player.txt*        A tiny mpv-backed audio player popup for Neovim
+
+==============================================================================
+CONTENTS                                                *nvim-sfx-player-contents*
+
+    1. Introduction ............... |nvim-sfx-player-introduction|
+    2. Requirements ............... |nvim-sfx-player-requirements|
+    3. Setup ...................... |nvim-sfx-player-setup|
+    4. nvim-tree integration ...... |nvim-sfx-player-nvimtree|
+    5. Commands ................... |nvim-sfx-player-commands|
+    6. Lua API .................... |nvim-sfx-player-api|
+    7. Controls ................... |nvim-sfx-player-controls|
+    8. Configuration .............. |nvim-sfx-player-config|
+    9. Highlights ................. |nvim-sfx-player-highlights|
+
+==============================================================================
+1. INTRODUCTION                                     *nvim-sfx-player-introduction*
+
+nvim.sfx_player opens a floating popup that plays an audio file (mp3, wav,
+flac, ogg, …) and shows a live, colored timeline you drive from the keyboard.
+Playback is handled by |mpv| through its JSON IPC socket, so play/pause, seek
+and volume are real-time — no process restarts.
+
+==============================================================================
+2. REQUIREMENTS                                     *nvim-sfx-player-requirements*
+
+    - Neovim >= 0.9
+    - mpv         (required)   https://mpv.io
+    - ffprobe     (optional)   https://ffmpeg.org  -- extra metadata
+
+macOS: >
+    brew install mpv
+    brew install ffmpeg
+<
+Linux: >
+    sudo apt install mpv ffmpeg      " Debian/Ubuntu
+    sudo dnf install mpv ffmpeg      " Fedora
+    sudo pacman -S mpv ffmpeg        " Arch
+<
+==============================================================================
+3. SETUP                                                   *nvim-sfx-player-setup*
+
+                                                     *nvim.sfx_player.setup()*
+Call setup() once, optionally with a table of options (see
+|nvim-sfx-player-config|). >
+
+    require("nvim.sfx_player").setup()
+<
+With lazy.nvim: >
+
+    {
+      "monok-robeto/nvim.sfx_player",
+      event = "VeryLazy",
+      opts = {},
+    }
+<
+==============================================================================
+4. NVIM-TREE INTEGRATION                                *nvim-sfx-player-nvimtree*
+
+                                            *nvim.sfx_player.nvimtree_attach()*
+nvimtree_attach({bufnr} [, {opts}])
+
+Bind <CR>/<Tab> in nvim-tree so audio files open the player and everything
+else keeps the default behaviour. Call it after default_on_attach(). >
+
+    require("nvim-tree").setup({
+      on_attach = function(bufnr)
+        local api = require("nvim-tree.api")
+        api.config.mappings.default_on_attach(bufnr)
+        require("nvim.sfx_player").nvimtree_attach(bufnr)
+      end,
+    })
+<
+{opts} may set `open` and `preview` to use different keys: >
+
+    require("nvim.sfx_player").nvimtree_attach(bufnr, { open = "o" })
+<
+==============================================================================
+5. COMMANDS                                             *nvim-sfx-player-commands*
+
+                                                                *:SfxPlayerOpen*
+:SfxPlayerOpen {file}   Open the player for {file} (supports path completion).
+
+                                                               *:SfxPlayerClose*
+:SfxPlayerClose         Close the popup and stop playback.
+
+==============================================================================
+6. LUA API                                                   *nvim-sfx-player-api*
+
+                                                      *nvim.sfx_player.open()*
+open({path})            Open the popup for the audio file {path}.
+
+                                                     *nvim.sfx_player.close()*
+close()                 Close the popup and stop playback.
+
+                                                  *nvim.sfx_player.is_audio()*
+is_audio({path})        Return true if {path} has a configured audio extension.
+
+==============================================================================
+7. CONTROLS                                             *nvim-sfx-player-controls*
+
+Inside the popup (all keys configurable, see |nvim-sfx-player-config|):
+
+    <Space>        play / pause
+    <Right>        seek forward  (seek_step seconds)
+    <Left>         seek backward (seek_step seconds)
+    <Up>           volume up     (volume_step %)
+    <Down>         volume down   (volume_step %)
+    L              toggle loop
+    <Esc> / q      quit
+
+==============================================================================
+8. CONFIGURATION                                          *nvim-sfx-player-config*
+
+Defaults: >
+
+    require("nvim.sfx_player").setup({
+      title = "nvim.sfx_player",
+      mpv_path = "mpv",
+      ffprobe_path = "ffprobe",
+
+      default_volume = 100,        -- 0-130
+      volume_step = 5,             -- % per press
+      seek_step = 3,               -- seconds
+      loop_default = false,
+
+      update_interval = 200,       -- ms
+      bar_width = 34,              -- cells
+      border = "rounded",
+      auto_close_on_leave = true,
+
+      window = { width = nil, row = nil, col = nil },
+
+      icons = {
+        file = "🎵", paused = "▶", playing = "⏸",
+        volume = "🔊", loop_on = "🔁", loop_off = "➡",
+      },
+
+      extensions = {
+        "mp3","wav","flac","ogg","oga","opus","m4a",
+        "aac","wma","aiff","aif","alac","ape","mka",
+      },
+
+      keymaps = {
+        play_pause    = "<Space>",
+        seek_forward  = "<Right>",
+        seek_backward = "<Left>",
+        volume_up     = "<Up>",
+        volume_down   = "<Down>",
+        toggle_loop   = "L",
+        quit          = { "<Esc>", "q" },
+      },
+
+      highlights = { ... },        -- see below
+    })
+<
+Each keymap value may be a string, a list of strings, or `false` to disable
+that action. keymaps, highlights and icons are replaced per key, so partial
+overrides never leave stale defaults behind.
+
+==============================================================================
+9. HIGHLIGHTS                                          *nvim-sfx-player-highlights*
+
+Every highlight value is passed to |nvim_set_hl()|. Use `{ link = "Group" }`
+to follow the colorscheme or explicit attrs like `{ fg = "#7aa2f7" }`. They
+are re-applied on every |ColorScheme| event. Groups and their config keys:
+
+    SfxPlayerTitle          title
+    SfxPlayerName           name
+    SfxPlayerMeta           meta
+    SfxPlayerIcon           icon
+    SfxPlayerBarFilled      filled   (played part of the bar)
+    SfxPlayerBarKnob        knob     (playhead)
+    SfxPlayerBarRemain      remain   (unplayed part of the bar)
+    SfxPlayerTime           time
+    SfxPlayerVolume         volume
+    SfxPlayerLoopActive     loop_active
+    SfxPlayerLoopInactive   loop_inactive
+    SfxPlayerHelp           help
+
+Example: >
+
+    require("nvim.sfx_player").setup({
+      highlights = {
+        filled = { fg = "#a6e3a1", bold = true },
+        knob   = { fg = "#f9e2af" },
+        remain = { fg = "#45475a" },
+      },
+    })
+<
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:
