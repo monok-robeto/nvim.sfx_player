@@ -1,27 +1,15 @@
 # nvim.sfx_player
-
 [![discord invite link](https://img.shields.io/discord/1495504680711880714?logo=discord)](https://discord.gg/a2qzfrFzWT)
 
-![preview](assets/preview.gif)
-![fullscreen](assets/fullscreen.png)
+| ![preview](assets/preview.gif) 
+| ----------------------- |
+| ![fullscreen](assets/fullscreen.png) | 
+
 
 A tiny audio player popup for Neovim. Open an `mp3`, `wav`, `flac`, `ogg`, … file
 straight from your file explorer (e.g. [nvim-tree](https://github.com/nvim-tree/nvim-tree.lua))
 and get a floating window with file info and a **live, colored timeline** you drive
 from the keyboard.
-
-```
-╭───────────────── nvim.sfx_player ─────────────────╮
-│  🎵  impact_piano_falls.mp3                       │
-│  MP3  ·  44.1 kHz  ·  stereo  ·  320 kbps         │
-│  1.8 MB  ·  00:47                                 │
-│                                                   │
-│  ⏸  00:12 ━━━━━━━━━●───────────────────── 00:47   │
-│                                                   │
-│  🔊 100%    🔁 loop off                           │
-│  [Space] play/pause  [↓/↑] vol  [←/→] seek …      │
-╰───────────────────────────────────────────────────╯
-```
 
 Playback is handled by [`mpv`](https://mpv.io/) over its JSON IPC socket, so
 play/pause, seek and volume are real-time and gapless — no process restarts.
