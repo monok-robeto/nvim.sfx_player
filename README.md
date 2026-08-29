@@ -9,7 +9,7 @@
 
 I originally built this tool to solve a simple problem: I had too many audio files to audit and did not want to leave my terminal to listen to them. At first, it only supported playing a single file. After using it for a while, my friends and I realized it was actually a convenient way to listen to music.
 
-Many streaming services consume significant system resources. While there are existing terminal-based audio players, I found their steep learning curves and complex interfaces discouraging. Since Neovim users are already comfortable with file navigation and buffer management, I decided to evolve this project into a full-featured music player plugin.
+Many streaming services like YouTube or Spotify consume significant system resources. While there are existing terminal-based audio players, I found their steep learning curves and complex interfaces discouraging. Since Neovim users are already comfortable with file navigation and buffer management, I decided to evolve this project into a full-featured music player plugin.
 
 It simplifies your workflow by treating your existing file system as your music library. You can manage albums and tracks by organizing them into folders. When you select a file, the plugin automatically detects the parent directory as an album, allowing you to manage playback across that collection with ease.
 
