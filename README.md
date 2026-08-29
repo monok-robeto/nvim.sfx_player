@@ -1,9 +1,9 @@
 # nvim.sfx_player
 [![discord invite link](https://img.shields.io/discord/1495504680711880714?logo=discord)](https://discord.gg/a2qzfrFzWT)
 
-| ![preview](assets/nvim.sfx_player_record.gif) 
-| ----------------------- |
 |preview| 
+| ----------------------- |
+| ![preview](assets/nvim.sfx_player_record.gif) 
 
 ## Overview
 
