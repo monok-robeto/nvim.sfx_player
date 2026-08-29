@@ -1,24 +1,31 @@
 # nvim.sfx_player
 [![discord invite link](https://img.shields.io/discord/1495504680711880714?logo=discord)](https://discord.gg/a2qzfrFzWT)
 
-| ![preview](assets/preview.gif) 
+| ![preview](assets/nvim.sfx_player_record.gif) 
 | ----------------------- |
-| ![fullscreen](assets/fullscreen.png) | 
+|preview| 
 
+## Overview
 
-A tiny audio player popup for Neovim. Open an `mp3`, `wav`, `flac`, `ogg`, … file straight from your file explorer (e.g. [nvim-tree](https://github.com/nvim-tree/nvim-tree.lua)) and get a floating window with file info and a **live, colored timeline** you drive from the keyboard.
+I originally created this repository to solve a simple problem: I had too many audio files to audit and didn't want to leave my terminal to listen to them. After using it for a while, both my friends and I realized it was a convenient way to listen to music as well.
 
-Playback is handled by [`mpv`](https://mpv.io/) over its JSON IPC socket, so play/pause, seek and volume are real-time and gapless, no process restarts.
+Streaming services like YouTube or Spotify often consume significant system resources. While there are existing terminal-based audio players, I found their steep learning curves and complex interfaces quite discouraging. Since Neovim users are already comfortable with file navigation and buffer management, I decided to evolve this project into a full-featured music player plugin.
 
-## Features
+It simplifies the workflow by treating your existing file system as your music library. You can manage albums and tracks simply by organizing them into folders. When you select a file, the plugin automatically detects the parent directory as an album, allowing you to manage playback across that collection with ease.
 
-- Floating popup with track metadata (codec, sample rate, channels, bitrate, size, duration)
-- Live, **colored** progress bar that follows your colorscheme
-- Play / pause, seek ±Ns, volume up/down
-- **Album/playlist aware**: opening a file scans its folder for sibling audio files and lets you play through it in four modes, single file loop, sequential, shuffle, or playlist loop, plus manual next/prev track
-- Fully configurable: title, keymaps, colors, default volume, seek step, refresh rate, …
-- One-line integration with nvim-tree (or call `open()` from anywhere)
-- No orphan processes: `mpv` is always cleaned up when the popup closes
+A tiny audio player popup for Neovim. Open an `mp3`, `wav`, `flac`, `ogg`, or other audio file straight from your file explorer (such as [nvim-tree](https://github.com/nvim-tree/nvim-tree.lua)) to get a floating window with file information and a live, colored timeline you drive from the keyboard.
+
+Playback is handled by [`mpv`](https://mpv.io/) over its JSON IPC socket. This ensures that play, pause, seek, and volume adjustments are real-time and gapless, with no need for process restarts.
+
+## Key Features
+
+*   **Floating Popup**: Displays track metadata including codec, sample rate, channels, bitrate, file size, and duration.
+*   **Live Visuals**: Includes a colored progress bar that automatically adapts to your current Neovim colorscheme.
+*   **Playback Control**: Supports play, pause, seeking, and volume adjustment.
+*   **Album/Playlist Awareness**: Opening a file scans its folder for sibling audio files. You can cycle through them using four modes: single file loop, sequential, shuffle, or playlist loop. Manual track skipping is also supported.
+*   **Highly Configurable**: Customize the title, keymaps, colors, default volume, seek step, refresh rate, and more.
+*   **Seamless Integration**: Offers one-line integration with `nvim-tree`, or you can call `open()` from anywhere in your configuration.
+*   **Process Management**: No orphan processes are left behind, as the `mpv` instance is cleaned up automatically when the popup closes.
 
 ## Requirements
 
