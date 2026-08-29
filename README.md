@@ -5,26 +5,28 @@
 | ----------------------- |
 | ![preview](assets/nvim.sfx_player_record.gif) 
 
+## Preface
+
+I originally built this tool to solve a simple problem: I had too many audio files to audit and did not want to leave my terminal to listen to them. At first, it only supported playing a single file. After using it for a while, my friends and I realized it was actually a convenient way to listen to music.
+
+Many streaming services consume significant system resources. While there are existing terminal-based audio players, I found their steep learning curves and complex interfaces discouraging. Since Neovim users are already comfortable with file navigation and buffer management, I decided to evolve this project into a full-featured music player plugin.
+
+It simplifies your workflow by treating your existing file system as your music library. You can manage albums and tracks by organizing them into folders. When you select a file, the plugin automatically detects the parent directory as an album, allowing you to manage playback across that collection with ease.
+
 ## Overview
 
-I originally created this repository to solve a simple problem: I had too many audio files to audit and didn't want to leave my terminal to listen to them. After using it for a while, both my friends and I realized it was a convenient way to listen to music as well.
+This is a lightweight audio player popup for Neovim. You can open an `mp3`, `wav`, `flac`, `ogg`, or other audio file directly from your file explorer, such as [nvim-tree](https://github.com/nvim-tree/nvim-tree.lua). This triggers a floating window displaying file information and a live, colored timeline that you control via your keyboard.
 
-Streaming services like YouTube or Spotify often consume significant system resources. While there are existing terminal-based audio players, I found their steep learning curves and complex interfaces quite discouraging. Since Neovim users are already comfortable with file navigation and buffer management, I decided to evolve this project into a full-featured music player plugin.
-
-It simplifies the workflow by treating your existing file system as your music library. You can manage albums and tracks simply by organizing them into folders. When you select a file, the plugin automatically detects the parent directory as an album, allowing you to manage playback across that collection with ease.
-
-A tiny audio player popup for Neovim. Open an `mp3`, `wav`, `flac`, `ogg`, or other audio file straight from your file explorer (such as [nvim-tree](https://github.com/nvim-tree/nvim-tree.lua)) to get a floating window with file information and a live, colored timeline you drive from the keyboard.
-
-Playback is handled by [`mpv`](https://mpv.io/) over its JSON IPC socket. This ensures that play, pause, seek, and volume adjustments are real-time and gapless, with no need for process restarts.
+Playback is handled by [`mpv`](https://mpv.io/) over its JSON IPC socket. This architecture ensures that play, pause, seek, and volume adjustments are real-time and gapless without requiring process restarts.
 
 ## Key Features
 
 *   **Floating Popup**: Displays track metadata including codec, sample rate, channels, bitrate, file size, and duration.
 *   **Live Visuals**: Includes a colored progress bar that automatically adapts to your current Neovim colorscheme.
 *   **Playback Control**: Supports play, pause, seeking, and volume adjustment.
-*   **Album/Playlist Awareness**: Opening a file scans its folder for sibling audio files. You can cycle through them using four modes: single file loop, sequential, shuffle, or playlist loop. Manual track skipping is also supported.
+*   **Album and Playlist Awareness**: Opening a file scans its folder for sibling audio files. You can cycle through them using four modes: single file loop, sequential, shuffle, or playlist loop. Manual track skipping is also supported.
 *   **Highly Configurable**: Customize the title, keymaps, colors, default volume, seek step, refresh rate, and more.
-*   **Seamless Integration**: Offers one-line integration with `nvim-tree`, or you can call `open()` from anywhere in your configuration.
+*   **Integration**: Offers one-line integration with `nvim-tree`, or you can call `open()` from anywhere in your configuration.
 *   **Process Management**: No orphan processes are left behind, as the `mpv` instance is cleaned up automatically when the popup closes.
 
 ## Requirements
@@ -193,7 +195,7 @@ require("nvim.sfx_player").setup({
   auto_close_on_leave = true,  -- close popup when it loses focus
 
   window = {
-    width = nil,               -- default: bar_width + 20
+    width = nil,               -- default: max(bar_width + 20, 60)
     row = nil,                 -- default: vertically centered
     col = nil,                 -- default: horizontally centered
   },

@@ -36,7 +36,7 @@ M.defaults = {
   auto_close_on_leave = true, -- close popup when it loses focus
 
   window = {
-    width = nil, -- default: bar_width + 20
+    width = nil, -- default: max(bar_width + 20, 60)
     row = nil, -- default: vertically centered
     col = nil, -- default: horizontally centered
   },
