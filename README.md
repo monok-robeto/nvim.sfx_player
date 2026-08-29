@@ -14,7 +14,8 @@ Playback is handled by [`mpv`](https://mpv.io/) over its JSON IPC socket, so pla
 
 - Floating popup with track metadata (codec, sample rate, channels, bitrate, size, duration)
 - Live, **colored** progress bar that follows your colorscheme
-- Play / pause, seek ±Ns, volume up/down, loop toggle
+- Play / pause, seek ±Ns, volume up/down
+- **Album/playlist aware**: opening a file scans its folder for sibling audio files and lets you play through it in four modes, single file loop, sequential, shuffle, or playlist loop, plus manual next/prev track
 - Fully configurable: title, keymaps, colors, default volume, seek step, refresh rate, …
 - One-line integration with nvim-tree (or call `open()` from anywhere)
 - No orphan processes: `mpv` is always cleaned up when the popup closes
@@ -124,17 +125,37 @@ sfx.is_audio("/path/to/x.mp3")   -- => true/false, by configured extensions
 
 ## Controls (inside the popup)
 
-| Key           | Action           |
-| ------------- | ---------------- |
-| `<Space>`     | play / pause     |
-| `<Right>`     | seek forward 3s  |
-| `<Left>`      | seek backward 3s |
-| `<Up>`        | volume up        |
-| `<Down>`      | volume down      |
-| `L`           | toggle loop      |
-| `<Esc>` / `q` | quit             |
+| Key           | Action                    |
+| ------------- | ------------------------- |
+| `<Space>`     | play / pause              |
+| `<Right>`     | seek forward 3s           |
+| `<Left>`      | seek backward 3s          |
+| `<Up>`        | volume up                 |
+| `<Down>`      | volume down                |
+| `L`           | cycle playback mode        |
+| `>`           | next track in the folder   |
+| `<`           | previous track in the folder |
+| `<Esc>` / `q` | quit                        |
 
 All of these are configurable (see below).
+
+## Albums / playlists
+
+Opening a file also scans its folder for other files with a configured
+audio extension, sorted by name, that's your "album". `L` cycles through
+four playback modes:
+
+| Mode                      | Behaviour                                              |
+| ------------------------- | ------------------------------------------------------- |
+| single loop (default)     | repeats the current file forever                        |
+| sequential                | plays the folder in order, stops after the last file     |
+| shuffle                   | plays the folder in random order, stops once each file has played once |
+| playlist loop             | plays the folder in order and loops back to the first file |
+
+`>` / `<` skip to the next/previous track manually in any mode (in shuffle
+mode they follow the shuffled order). Track changes reuse the running `mpv`
+process, so switching songs is gapless, no popup flicker or reconnect.
+Set the starting mode with `mode_default` (see Configuration below).
 
 ## Configuration
 
@@ -150,7 +171,10 @@ require("nvim.sfx_player").setup({
   default_volume = 100,        -- 0-130 (mpv soft volume)
   volume_step = 5,             -- % per key press
   seek_step = 3,               -- seconds per seek
-  loop_default = false,        -- start with loop enabled
+
+  -- Starting playback mode, see "Albums / playlists" above.
+  -- "single" | "sequential" | "shuffle" | "repeat"
+  mode_default = "single",
 
   update_interval = 200,       -- timeline refresh in ms
   bar_width = 34,              -- progress bar width in cells
@@ -168,8 +192,10 @@ require("nvim.sfx_player").setup({
     paused = "▶",              -- shown while paused
     playing = "⏸",             -- shown while playing
     volume = "🔊",
-    loop_on = "🔁",
-    loop_off = "➡",
+    mode_single = "🔂",
+    mode_sequential = "➡",
+    mode_shuffle = "🔀",
+    mode_repeat = "🔁",
   },
 
   extensions = {               -- treated as audio (lower-case, no dot)
@@ -184,7 +210,9 @@ require("nvim.sfx_player").setup({
     seek_backward = "<Left>",
     volume_up     = "<Up>",
     volume_down   = "<Down>",
-    toggle_loop   = "L",        -- Shift+L
+    cycle_mode    = "L",        -- Shift+L
+    next_track    = ">",
+    prev_track    = "<",
     quit          = { "<Esc>", "q" },
   },
 
@@ -192,18 +220,17 @@ require("nvim.sfx_player").setup({
   -- theme, or explicit attrs like { fg = "#7aa2f7", bold = true }.
   -- Re-applied automatically on every :colorscheme change.
   highlights = {
-    title         = { link = "Title" },
-    name          = { link = "Title" },
-    meta          = { link = "Comment" },
-    icon          = { link = "Special" },
-    filled        = { link = "Statement" }, -- played part of the bar
-    knob          = { link = "Special" },   -- playhead
-    remain        = { link = "Comment" },   -- unplayed part of the bar
-    time          = { link = "Number" },
-    volume        = { link = "Number" },
-    loop_active   = { link = "String" },
-    loop_inactive = { link = "Comment" },
-    help          = { link = "NonText" },
+    title  = { link = "Title" },
+    name   = { link = "Title" },
+    meta   = { link = "Comment" },
+    icon   = { link = "Special" },
+    filled = { link = "Statement" }, -- played part of the bar
+    knob   = { link = "Special" },   -- playhead
+    remain = { link = "Comment" },   -- unplayed part of the bar
+    time   = { link = "Number" },
+    volume = { link = "Number" },
+    mode   = { link = "String" },    -- playback mode + playlist position
+    help   = { link = "NonText" },
   },
 })
 ```
@@ -238,9 +265,17 @@ require("nvim.sfx_player").setup({
 
 ## How it works
 
-- `open()` launches a headless `mpv` (`--no-video --keep-open`) with a unique
-- `--input-ipc-server` socket, then connects to it with a Neovim pipe channel. A timer polls `time-pos` / `duration` / `pause` / `volume` and repaints the popup
-- key actions send `cycle pause`, `seek`, `add volume`, and `set loop-file` commands back over the socket. Closing the popup sends `quit` and stops the job, so nothing is left running.
+- `open()` scans the target file's folder for sibling audio files (sorted by
+  name) to build the album/playlist, then launches a headless `mpv`
+  (`--no-video --keep-open`) with a unique `--input-ipc-server` socket and
+  connects to it with a Neovim pipe channel.
+- A timer polls `time-pos` / `duration` / `pause` / `volume` (and, when in a
+  multi-file playback mode, `eof-reached`) and repaints the popup.
+- Key actions send `cycle pause`, `seek`, `add volume`, and `set loop-file`
+  commands back over the socket. Switching tracks (manually or on
+  auto-advance) sends `loadfile ... replace` on the same `mpv` process, so
+  it's gapless, no restart. Closing the popup sends `quit` and stops the
+  job, so nothing is left running.
 
 ## License
 

@@ -106,8 +106,26 @@ Inside the popup (all keys configurable, see |nvim-sfx-player-config|):
     <Left>         seek backward (seek_step seconds)
     <Up>           volume up     (volume_step %)
     <Down>         volume down   (volume_step %)
-    L              toggle loop
+    L              cycle playback mode
+    >              next track in the folder
+    <              previous track in the folder
     <Esc> / q      quit
+
+                                                *nvim-sfx-player-playlists*
+Opening a file scans its folder for sibling audio files (sorted by name)
+to build an album/playlist. `L` cycles through four playback modes:
+
+    single (default)   repeat the current file forever
+    sequential          play the folder in order, stop after the last file
+    shuffle              play the folder in random order, stop once every
+                          file has played once
+    repeat               play the folder in order, looping back to the
+                          first file
+
+`>` / `<` skip to the next/previous track manually in any mode (following
+the shuffled order while in shuffle mode). Track changes reuse the running
+mpv process (`loadfile ... replace`), so switching songs is gapless. Set
+the starting mode with `mode_default`.
 
 ==============================================================================
 8. CONFIGURATION                                          *nvim-sfx-player-config*
@@ -122,7 +140,7 @@ Defaults: >
       default_volume = 100,        -- 0-130
       volume_step = 5,             -- % per press
       seek_step = 3,               -- seconds
-      loop_default = false,
+      mode_default = "single",     -- single | sequential | shuffle | repeat
 
       update_interval = 200,       -- ms
       bar_width = 34,              -- cells
@@ -132,8 +150,9 @@ Defaults: >
       window = { width = nil, row = nil, col = nil },
 
       icons = {
-        file = "🎵", paused = "▶", playing = "⏸",
-        volume = "🔊", loop_on = "🔁", loop_off = "➡",
+        file = "🎵", paused = "▶", playing = "⏸", volume = "🔊",
+        mode_single = "🔂", mode_sequential = "➡",
+        mode_shuffle = "🔀", mode_repeat = "🔁",
       },
 
       extensions = {
@@ -147,7 +166,9 @@ Defaults: >
         seek_backward = "<Left>",
         volume_up     = "<Up>",
         volume_down   = "<Down>",
-        toggle_loop   = "L",
+        cycle_mode    = "L",
+        next_track    = ">",
+        prev_track    = "<",
         quit          = { "<Esc>", "q" },
       },
 
@@ -174,8 +195,7 @@ are re-applied on every |ColorScheme| event. Groups and their config keys:
     SfxPlayerBarRemain      remain   (unplayed part of the bar)
     SfxPlayerTime           time
     SfxPlayerVolume         volume
-    SfxPlayerLoopActive     loop_active
-    SfxPlayerLoopInactive   loop_inactive
+    SfxPlayerMode           mode     (playback mode + playlist position)
     SfxPlayerHelp           help
 
 Example: >

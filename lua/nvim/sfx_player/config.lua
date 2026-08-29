@@ -19,7 +19,15 @@ M.defaults = {
   default_volume = 100, -- 0-130 (mpv soft volume)
   volume_step = 5, -- % per key press
   seek_step = 3, -- seconds per seek
-  loop_default = false, -- start with loop enabled
+
+  -- Starting playback mode. Opening a file scans its folder for sibling
+  -- audio files (the "album") and cycles through these modes with
+  -- keymaps.cycle_mode:
+  --   "single"     loop the current file only
+  --   "sequential" play the folder in order, stop after the last file
+  --   "shuffle"    play the folder in random order, stop after the last one
+  --   "repeat"     play the folder in order, looping back to the start
+  mode_default = "single",
 
   -- UI.
   update_interval = 200, -- timeline refresh in ms
@@ -38,8 +46,10 @@ M.defaults = {
     paused = "▶", -- shown while paused (press to play)
     playing = "⏸", -- shown while playing (press to pause)
     volume = "🔊",
-    loop_on = "🔁",
-    loop_off = "➡",
+    mode_single = "🔂", -- single-file loop
+    mode_sequential = "➡", -- play folder in order
+    mode_shuffle = "🔀", -- play folder in random order
+    mode_repeat = "🔁", -- loop the whole folder
   },
 
   -- File extensions treated as audio (lower-case, no dot).
@@ -68,7 +78,9 @@ M.defaults = {
     seek_backward = "<Left>",
     volume_up = "<Up>",
     volume_down = "<Down>",
-    toggle_loop = "L", -- Shift+L
+    cycle_mode = "L", -- Shift+L, cycles single/sequential/shuffle/repeat
+    next_track = ">", -- next file in the folder
+    prev_track = "<", -- previous file in the folder
     quit = { "<Esc>", "q" },
   },
 
@@ -85,8 +97,7 @@ M.defaults = {
     remain = { link = "Comment" }, -- unplayed part of the bar
     time = { link = "Number" },
     volume = { link = "Number" },
-    loop_active = { link = "String" },
-    loop_inactive = { link = "Comment" },
+    mode = { link = "String" }, -- playback mode + playlist position
     help = { link = "NonText" },
   },
 }

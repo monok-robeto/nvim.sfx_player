@@ -1,9 +1,13 @@
 -- nvim.sfx_player :: playback engine
 --
 -- Drives a single background `mpv` process through its JSON IPC socket and
--- renders a floating popup with a live, colored timeline.
+-- renders a floating popup with a live, colored timeline. Opening a file
+-- also scans its folder for sibling audio files, so a whole album/playlist
+-- can be played back in single/sequential/shuffle/repeat mode.
 
 local Player = {}
+
+math.randomseed(os.time())
 
 ---@type SfxPlayer.Config
 local cfg = nil
@@ -21,12 +25,20 @@ local HL = {
   remain = "SfxPlayerBarRemain",
   time = "SfxPlayerTime",
   volume = "SfxPlayerVolume",
-  loop_active = "SfxPlayerLoopActive",
-  loop_inactive = "SfxPlayerLoopInactive",
+  mode = "SfxPlayerMode",
   help = "SfxPlayerHelp",
 }
 
 local ext_set = {}
+
+-- cycle order for keymaps.cycle_mode
+local MODE_ORDER = { "single", "sequential", "shuffle", "repeat" }
+local MODE_LABEL = {
+  single = "single loop",
+  sequential = "sequential",
+  shuffle = "shuffle",
+  ["repeat"] = "playlist loop",
+}
 
 local state = {
   job = nil, -- mpv job id
@@ -44,8 +56,15 @@ local state = {
   time_pos = 0,
   volume = 100,
   paused = false,
-  loop = false,
   closing = false,
+  eof_reached = false, -- mirrors mpv's `eof-reached` property, edge-triggers advance()
+
+  -- playlist ("album") state: every audio file found next to `file`
+  playlist = {},
+  index = 0, -- 1-based position of `file` inside playlist
+  mode = "single", -- single | sequential | shuffle | repeat
+  shuffle_order = {}, -- permutation of playlist indices, used in shuffle mode
+  shuffle_pos = 0, -- position within shuffle_order
 }
 
 ----------------------------------------------------------------------
@@ -142,6 +161,10 @@ local function pretty_key(lhs)
   return PRETTY[lhs] or lhs
 end
 
+local function mode_icon()
+  return cfg.icons["mode_" .. state.mode] or "?"
+end
+
 ----------------------------------------------------------------------
 -- rendering
 ----------------------------------------------------------------------
@@ -213,24 +236,28 @@ local function render()
 
   rows[#rows + 1] = {}
 
-  local loop_hl = state.loop and HL.loop_active or HL.loop_inactive
-  local loop_icon = state.loop and cfg.icons.loop_on or cfg.icons.loop_off
+  local mode_text = MODE_LABEL[state.mode] or state.mode
+  if #state.playlist > 1 then
+    mode_text = mode_text .. string.format("  (%d/%d)", state.index, #state.playlist)
+  end
   rows[#rows + 1] = {
     { "  " .. cfg.icons.volume .. " ", HL.volume },
     { string.format("%d%%", state.volume), HL.volume },
-    { "    " .. loop_icon .. " ", loop_hl },
-    { "loop " .. (state.loop and "on" or "off"), loop_hl },
+    { "    " .. mode_icon() .. " ", HL.mode },
+    { mode_text, HL.mode },
   }
 
   local k = cfg.keymaps
   local help = string.format(
-    "  [%s] play/pause  [%s/%s] vol  [%s/%s] seek  [%s] loop  [%s] quit",
+    "  [%s] play/pause  [%s/%s] vol  [%s/%s] seek  [%s] mode  [%s/%s] track  [%s] quit",
     pretty_key(k.play_pause),
     pretty_key(k.volume_down),
     pretty_key(k.volume_up),
     pretty_key(k.seek_backward),
     pretty_key(k.seek_forward),
-    pretty_key(k.toggle_loop),
+    pretty_key(k.cycle_mode),
+    pretty_key(k.prev_track),
+    pretty_key(k.next_track),
     pretty_key(k.quit)
   )
   rows[#rows + 1] = { { help, HL.help } }
@@ -293,6 +320,65 @@ local function probe(path)
 end
 
 ----------------------------------------------------------------------
+-- folder ("album") scanning
+----------------------------------------------------------------------
+
+-- List every audio file next to `path`, sorted by name, plus the 1-based
+-- index of `path` within that list. Falls back to a single-file "playlist"
+-- when the folder can't be read or has nothing else in it.
+local function scan_playlist(path)
+  local dir = vim.fn.fnamemodify(path, ":h")
+  local ok, names = pcall(vim.fn.readdir, dir)
+  local files = {}
+  if ok and names then
+    for _, name in ipairs(names) do
+      local full = dir .. "/" .. name
+      if Player.is_audio(full) and vim.fn.filereadable(full) == 1 then
+        files[#files + 1] = full
+      end
+    end
+  end
+  if #files == 0 then
+    files = { path }
+  end
+  table.sort(files, function(a, b)
+    return vim.fn.fnamemodify(a, ":t"):lower() < vim.fn.fnamemodify(b, ":t"):lower()
+  end)
+
+  local index = 1
+  for i, f in ipairs(files) do
+    if f == path then
+      index = i
+      break
+    end
+  end
+  return files, index
+end
+
+-- Fisher-Yates shuffle of {1..n}, with `keep_first` (if given) moved to the
+-- front so switching into shuffle mode doesn't jump away from the track
+-- that's currently playing.
+local function shuffle_indices(n, keep_first)
+  local order = {}
+  for i = 1, n do
+    order[i] = i
+  end
+  for i = n, 2, -1 do
+    local j = math.random(i)
+    order[i], order[j] = order[j], order[i]
+  end
+  if keep_first then
+    for i, v in ipairs(order) do
+      if v == keep_first then
+        order[i], order[1] = order[1], order[i]
+        break
+      end
+    end
+  end
+  return order
+end
+
+----------------------------------------------------------------------
 -- mpv ipc
 ----------------------------------------------------------------------
 
@@ -306,6 +392,10 @@ local function send(tbl)
   end
 end
 
+-- forward declaration: assigned in the playlist controls section below,
+-- referenced here because it's driven by the `eof-reached` poll in tick().
+local advance
+
 local function process_line(line)
   if not line or line == "" then
     return
@@ -314,6 +404,7 @@ local function process_line(line)
   if not ok or type(msg) ~= "table" then
     return
   end
+
   if msg.request_id and msg.error == "success" then
     if msg.request_id == 1 and type(msg.data) == "number" then
       state.time_pos = msg.data
@@ -323,6 +414,16 @@ local function process_line(line)
       state.paused = msg.data == true
     elseif msg.request_id == 4 and type(msg.data) == "number" then
       state.volume = math.floor(msg.data + 0.5)
+    elseif msg.request_id == 5 then
+      -- edge-triggered: mpv keeps `eof-reached` true until the next file
+      -- loads, so only fire once, on the false -> true transition.
+      local eof = msg.data == true
+      if eof and not state.eof_reached then
+        state.eof_reached = true
+        vim.schedule(advance)
+      elseif not eof then
+        state.eof_reached = false
+      end
     end
   end
 end
@@ -349,6 +450,9 @@ local function tick()
   end
   send { command = { "get_property", "pause" }, request_id = 3 }
   send { command = { "get_property", "volume" }, request_id = 4 }
+  if state.mode ~= "single" and #state.playlist > 1 then
+    send { command = { "get_property", "eof-reached" }, request_id = 5 }
+  end
 end
 
 local function try_connect()
@@ -406,10 +510,96 @@ local function change_volume(delta)
   render()
 end
 
-local function toggle_loop()
-  state.loop = not state.loop
-  send { command = { "set_property", "loop-file", state.loop and "inf" or "no" } }
+-- "single" is the only mode mpv itself loops (loop-file); the others end
+-- the file naturally and we react to that via the eof-reached poll in tick().
+local function apply_loop_property()
+  send { command = { "set_property", "loop-file", state.mode == "single" and "inf" or "no" } }
+end
+
+local function set_mode(mode)
+  state.mode = mode
+  if mode == "shuffle" then
+    state.shuffle_order = shuffle_indices(#state.playlist, state.index)
+    state.shuffle_pos = 1 -- shuffle_indices keeps the current track at the front
+  else
+    state.shuffle_order, state.shuffle_pos = {}, 0
+  end
+  apply_loop_property()
   render()
+end
+
+local function cycle_mode()
+  local cur = 1
+  for i, m in ipairs(MODE_ORDER) do
+    if m == state.mode then
+      cur = i
+      break
+    end
+  end
+  set_mode(MODE_ORDER[cur % #MODE_ORDER + 1])
+end
+
+-- Swap mpv to a different file in the current playlist without tearing
+-- down the process/socket, so track changes stay gapless.
+local function load_track(idx)
+  local path = state.playlist[idx]
+  if not path then
+    return
+  end
+  state.index = idx
+  state.file = path
+  state.meta = probe(path)
+  state.duration = state.meta.duration or 0
+  state.time_pos = 0
+  state.paused = false
+  state.eof_reached = false
+  send { command = { "loadfile", path, "replace" } }
+  apply_loop_property()
+  render()
+end
+
+---Called when mpv reports the current file ended naturally (not stopped by
+---us). Decides the next track, if any, based on the active playback mode.
+advance = function()
+  if state.mode == "single" or #state.playlist <= 1 then
+    return
+  end
+  if state.mode == "sequential" then
+    if state.index < #state.playlist then
+      load_track(state.index + 1)
+    end
+  elseif state.mode == "repeat" then
+    load_track(state.index % #state.playlist + 1)
+  elseif state.mode == "shuffle" then
+    if state.shuffle_pos < #state.shuffle_order then
+      state.shuffle_pos = state.shuffle_pos + 1
+      load_track(state.shuffle_order[state.shuffle_pos])
+    end
+  end
+end
+
+-- Manual track skip (keymaps.next_track / prev_track). Works in every mode,
+-- following the shuffled order while in shuffle mode.
+local function step_track(delta)
+  if #state.playlist <= 1 then
+    return
+  end
+  if state.mode == "shuffle" then
+    local pos = state.shuffle_pos + delta
+    if pos < 1 or pos > #state.shuffle_order then
+      return
+    end
+    state.shuffle_pos = pos
+    load_track(state.shuffle_order[pos])
+  else
+    local idx = state.index + delta
+    if state.mode == "repeat" then
+      idx = (idx - 1) % #state.playlist + 1
+    elseif idx < 1 or idx > #state.playlist then
+      return
+    end
+    load_track(idx)
+  end
 end
 
 ----------------------------------------------------------------------
@@ -497,7 +687,13 @@ local function open_window()
   set_keys(buf, k.volume_down, function()
     change_volume(-cfg.volume_step)
   end)
-  set_keys(buf, k.toggle_loop, toggle_loop)
+  set_keys(buf, k.cycle_mode, cycle_mode)
+  set_keys(buf, k.next_track, function()
+    step_track(1)
+  end)
+  set_keys(buf, k.prev_track, function()
+    step_track(-1)
+  end)
   set_keys(buf, k.quit, Player.close)
 
   if cfg.auto_close_on_leave then
@@ -528,13 +724,24 @@ function Player.open(path)
 
   Player.close() -- one player at a time
 
+  local files, idx = scan_playlist(path)
+
   state.file = path
+  state.playlist = files
+  state.index = idx
+  state.mode = cfg.mode_default or "single"
+  if state.mode == "shuffle" then
+    state.shuffle_order = shuffle_indices(#state.playlist, state.index)
+    state.shuffle_pos = 1
+  else
+    state.shuffle_order, state.shuffle_pos = {}, 0
+  end
   state.meta = probe(path)
   state.duration = state.meta.duration or 0
   state.time_pos = 0
   state.paused = false
+  state.eof_reached = false
   state.volume = cfg.default_volume
-  state.loop = cfg.loop_default
   state.recv = ""
   state.connect_tries = 0
   state.sock = vim.fn.tempname()
@@ -551,7 +758,7 @@ function Player.open(path)
     "--volume=" .. cfg.default_volume,
     "--input-ipc-server=" .. state.sock,
   }
-  if cfg.loop_default then
+  if state.mode == "single" then
     args[#args + 1] = "--loop-file=inf"
   end
   args[#args + 1] = path
