@@ -125,25 +125,29 @@ sfx.is_audio("/path/to/x.mp3")   -- => true/false, by configured extensions
 
 ## Controls (inside the popup)
 
-| Key           | Action                    |
-| ------------- | ------------------------- |
-| `<Space>`     | play / pause              |
-| `<Right>`     | seek forward 3s           |
-| `<Left>`      | seek backward 3s          |
-| `<Up>`        | volume up                 |
-| `<Down>`      | volume down                |
-| `L`           | cycle playback mode        |
-| `>`           | next track in the folder   |
-| `<`           | previous track in the folder |
-| `<Esc>` / `q` | quit                        |
+| Key             | Action                                            |
+| --------------- | -------------------------------------------------- |
+| `<Space>`       | play / pause                                       |
+| `<Right>`       | seek forward 3s                                    |
+| `<Left>`        | seek backward 3s                                   |
+| `<Up>`          | volume up                                          |
+| `<Down>`        | volume down                                        |
+| `Shift+L` (`L`) | cycle playback mode, press again for the next one  |
+| `Shift+>` (`>`) | next track in the folder                           |
+| `Shift+<` (`<`) | previous track in the folder                       |
+| `<Esc>` / `q`   | quit                                                |
 
-All of these are configurable (see below).
+The popup itself spells all of this out at the bottom, key + what it does,
+so you never have to come back to this table to remember a shortcut. All of
+these are configurable (see below).
 
 ## Albums / playlists
 
 Opening a file also scans its folder for other files with a configured
-audio extension, sorted by name, that's your "album". `L` cycles through
-four playback modes:
+audio extension, sorted by name, that's your "album". When it finds more
+than one, the popup gains an album line (💿 + folder name) up top so you
+know you're not just playing a lone file. `L` cycles through four playback
+modes:
 
 | Mode                      | Behaviour                                              |
 | ------------------------- | ------------------------------------------------------- |
@@ -189,6 +193,7 @@ require("nvim.sfx_player").setup({
 
   icons = {
     file = "🎵",
+    album = "💿",              -- album line, only shown when >1 file was found
     paused = "▶",              -- shown while paused
     playing = "⏸",             -- shown while playing
     volume = "🔊",
@@ -221,6 +226,7 @@ require("nvim.sfx_player").setup({
   -- Re-applied automatically on every :colorscheme change.
   highlights = {
     title  = { link = "Title" },
+    album  = { link = "Directory" }, -- album line, only shown when >1 file was found
     name   = { link = "Title" },
     meta   = { link = "Comment" },
     icon   = { link = "Special" },

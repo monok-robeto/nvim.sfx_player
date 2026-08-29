@@ -17,6 +17,7 @@ local ns = vim.api.nvim_create_namespace "nvim_sfx_player"
 -- highlight group names, keyed by cfg.highlights key
 local HL = {
   title = "SfxPlayerTitle",
+  album = "SfxPlayerAlbum",
   name = "SfxPlayerName",
   meta = "SfxPlayerMeta",
   icon = "SfxPlayerIcon",
@@ -151,14 +152,70 @@ local PRETTY = {
   ["<BS>"] = "⌫",
 }
 
+-- Single characters that need Shift on a standard US layout. Spelling this
+-- out matters here: a bare ">" in the help line reads as "just press >",
+-- which isn't obvious on most keyboards.
+local SHIFT_CHARS = {
+  [">"] = true,
+  ["<"] = true,
+  ["!"] = true,
+  ["@"] = true,
+  ["#"] = true,
+  ["$"] = true,
+  ["%"] = true,
+  ["^"] = true,
+  ["&"] = true,
+  ["*"] = true,
+  ["("] = true,
+  [")"] = true,
+  ["_"] = true,
+  ["+"] = true,
+  ["{"] = true,
+  ["}"] = true,
+  ["|"] = true,
+  [":"] = true,
+  ['"'] = true,
+  ["~"] = true,
+  ["?"] = true,
+}
+
+---Format a single keymap lhs for display, e.g. "L" -> "Shift+L", ">" ->
+---"Shift+>", "<Left>" -> "←".
 local function pretty_key(lhs)
-  if type(lhs) == "table" then
-    lhs = lhs[1]
-  end
   if not lhs then
-    return "?"
+    return nil
   end
-  return PRETTY[lhs] or lhs
+  if PRETTY[lhs] then
+    return PRETTY[lhs]
+  end
+  if #lhs == 1 and (lhs:match "%u" or SHIFT_CHARS[lhs]) then
+    return "Shift+" .. lhs
+  end
+  return lhs
+end
+
+---Format every key bound to a keymap entry (string, list, or false),
+---joined with "/". Returns nil when the action is disabled.
+local function pretty_keys(spec)
+  if spec == false or spec == nil then
+    return nil
+  end
+  local list = type(spec) == "table" and spec or { spec }
+  local parts = {}
+  for _, lhs in ipairs(list) do
+    parts[#parts + 1] = pretty_key(lhs)
+  end
+  return #parts > 0 and table.concat(parts, "/") or nil
+end
+
+---Combine two keymap entries into one label, e.g. seek_backward/seek_forward
+----> "←/→". Falls back to whichever side is actually bound.
+local function combo_keys(a, b)
+  local la, lb = pretty_keys(a), pretty_keys(b)
+  if la and lb then
+    return la .. "/" .. lb
+  end
+  return la or lb
 end
 
 local function mode_icon()
@@ -224,6 +281,13 @@ local function render()
   -- assemble each line as segments so highlights land on exact byte ranges
   local rows = {}
 
+  -- Only worth a line when we actually found more than one file, a lone
+  -- file isn't an "album".
+  if #state.playlist > 1 then
+    local album = vim.fn.fnamemodify(state.file, ":h:t")
+    rows[#rows + 1] = { { "  " .. cfg.icons.album .. "  ", HL.icon }, { album, HL.album } }
+  end
+
   rows[#rows + 1] = { { "  " .. cfg.icons.file .. "  ", HL.icon }, { name, HL.name } }
   rows[#rows + 1] = { { "  " .. meta1, HL.meta } }
   rows[#rows + 1] = { { "  " .. meta2, HL.meta } }
@@ -247,20 +311,50 @@ local function render()
     { mode_text, HL.mode },
   }
 
+  -- Help block: one hint per line, spelled out (key + what it does), so a
+  -- first-time user doesn't have to guess that ">" needs Shift or that "L"
+  -- must be pressed repeatedly to reach the mode they want.
   local k = cfg.keymaps
-  local help = string.format(
-    "  [%s] play/pause  [%s/%s] vol  [%s/%s] seek  [%s] mode  [%s/%s] track  [%s] quit",
-    pretty_key(k.play_pause),
-    pretty_key(k.volume_down),
-    pretty_key(k.volume_up),
-    pretty_key(k.seek_backward),
-    pretty_key(k.seek_forward),
-    pretty_key(k.cycle_mode),
-    pretty_key(k.prev_track),
-    pretty_key(k.next_track),
-    pretty_key(k.quit)
-  )
-  rows[#rows + 1] = { { help, HL.help } }
+  local help_lines = {}
+
+  local play_pause = pretty_keys(k.play_pause)
+  local seek = combo_keys(k.seek_backward, k.seek_forward)
+  local volume = combo_keys(k.volume_down, k.volume_up)
+  local bits = {}
+  if play_pause then
+    bits[#bits + 1] = play_pause .. " play/pause"
+  end
+  if seek then
+    bits[#bits + 1] = seek .. string.format(" seek ±%ds", cfg.seek_step)
+  end
+  if volume then
+    bits[#bits + 1] = volume .. string.format(" volume ±%d%%", cfg.volume_step)
+  end
+  if #bits > 0 then
+    help_lines[#help_lines + 1] = table.concat(bits, "    ")
+  end
+
+  local cycle = pretty_keys(k.cycle_mode)
+  if cycle then
+    help_lines[#help_lines + 1] = cycle .. " cycle mode (press again for the next one)"
+  end
+
+  local track = combo_keys(k.next_track, k.prev_track)
+  local quit = pretty_keys(k.quit)
+  bits = {}
+  if track then
+    bits[#bits + 1] = track .. " next/prev track"
+  end
+  if quit then
+    bits[#bits + 1] = quit .. " quit"
+  end
+  if #bits > 0 then
+    help_lines[#help_lines + 1] = table.concat(bits, "    ")
+  end
+
+  for _, line in ipairs(help_lines) do
+    rows[#rows + 1] = { { "  " .. line, HL.help } }
+  end
 
   local lines, all_hls = {}, {}
   for i, segs in ipairs(rows) do
@@ -510,10 +604,17 @@ local function change_volume(delta)
   render()
 end
 
--- "single" is the only mode mpv itself loops (loop-file); the others end
--- the file naturally and we react to that via the eof-reached poll in tick().
+-- "single" always loops the current file. "repeat" also degenerates to a
+-- native mpv loop when the folder only has one file, since there's nothing
+-- else to advance to, advance() would just no-op on eof-reached forever.
+-- Every other case ends the file naturally and we react to that via the
+-- eof-reached poll in tick().
+local function wants_native_loop()
+  return state.mode == "single" or (state.mode == "repeat" and #state.playlist <= 1)
+end
+
 local function apply_loop_property()
-  send { command = { "set_property", "loop-file", state.mode == "single" and "inf" or "no" } }
+  send { command = { "set_property", "loop-file", wants_native_loop() and "inf" or "no" } }
 end
 
 local function set_mode(mode)
@@ -651,8 +752,11 @@ local function set_keys(buf, spec, fn)
 end
 
 local function open_window()
-  local width = cfg.window.width or (cfg.bar_width + 20)
-  local height = 8
+  -- wide enough for the spelled-out help lines (e.g. "Shift+L cycle mode
+  -- (press again for the next one)"); tall enough for the album line (when
+  -- there's more than one file) plus the 3-line help block.
+  local width = cfg.window.width or math.max(cfg.bar_width + 20, 60)
+  local height = 11
   local buf = vim.api.nvim_create_buf(false, true)
   vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].filetype = "sfx_player"
@@ -758,7 +862,7 @@ function Player.open(path)
     "--volume=" .. cfg.default_volume,
     "--input-ipc-server=" .. state.sock,
   }
-  if state.mode == "single" then
+  if wants_native_loop() then
     args[#args + 1] = "--loop-file=inf"
   end
   args[#args + 1] = path

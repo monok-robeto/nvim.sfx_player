@@ -106,14 +106,19 @@ Inside the popup (all keys configurable, see |nvim-sfx-player-config|):
     <Left>         seek backward (seek_step seconds)
     <Up>           volume up     (volume_step %)
     <Down>         volume down   (volume_step %)
-    L              cycle playback mode
-    >              next track in the folder
-    <              previous track in the folder
+    Shift+L (L)    cycle playback mode, press again for the next one
+    Shift+> (>)    next track in the folder
+    Shift+< (<)    previous track in the folder
     <Esc> / q      quit
+
+The popup itself spells all of this out at the bottom (key + what it does),
+so you don't have to come back here to remember a shortcut.
 
                                                 *nvim-sfx-player-playlists*
 Opening a file scans its folder for sibling audio files (sorted by name)
-to build an album/playlist. `L` cycles through four playback modes:
+to build an album/playlist. When it finds more than one, the popup gains
+an album line (icons.album + folder name) up top. `L` cycles through four
+playback modes:
 
     single (default)   repeat the current file forever
     sequential          play the folder in order, stop after the last file
@@ -150,7 +155,7 @@ Defaults: >
       window = { width = nil, row = nil, col = nil },
 
       icons = {
-        file = "🎵", paused = "▶", playing = "⏸", volume = "🔊",
+        file = "🎵", album = "💿", paused = "▶", playing = "⏸", volume = "🔊",
         mode_single = "🔂", mode_sequential = "➡",
         mode_shuffle = "🔀", mode_repeat = "🔁",
       },
@@ -187,6 +192,7 @@ to follow the colorscheme or explicit attrs like `{ fg = "#7aa2f7" }`. They
 are re-applied on every |ColorScheme| event. Groups and their config keys:
 
     SfxPlayerTitle          title
+    SfxPlayerAlbum          album    (album line, only when >1 file was found)
     SfxPlayerName           name
     SfxPlayerMeta           meta
     SfxPlayerIcon           icon

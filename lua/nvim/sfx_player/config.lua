@@ -43,6 +43,7 @@ M.defaults = {
 
   icons = {
     file = "🎵",
+    album = "💿", -- shown on the album/folder line (only when >1 file was found)
     paused = "▶", -- shown while paused (press to play)
     playing = "⏸", -- shown while playing (press to pause)
     volume = "🔊",
@@ -89,6 +90,7 @@ M.defaults = {
   -- `{ fg = "#7aa2f7", bold = true }`. Re-applied on every :colorscheme change.
   highlights = {
     title = { link = "Title" },
+    album = { link = "Directory" }, -- album/folder line (only when >1 file was found)
     name = { link = "Title" },
     meta = { link = "Comment" },
     icon = { link = "Special" },
